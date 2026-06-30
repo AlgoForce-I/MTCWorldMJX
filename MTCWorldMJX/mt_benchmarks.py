@@ -20,7 +20,18 @@ from MTCWorldMJX.envs.sawyer_xyz import SawyerXYZConfig, SawyerXYZEnv
 EnvDict = OrderedDict[str, Type[SawyerXYZEnv]]
 TaskSelect = Literal["random", "pseudorandom"]
 
+# MJX Warp shares one collision workspace across vmap lanes; naconmax must scale
+# with num_envs (worst MetaWorld tasks need ~32 contact slots per lane at 512 lanes).
+_NACONMAX_PER_LANE = 32
+
 _N_GOALS = 50
+
+
+def vector_env_naconmax(num_envs: int, base: int = 2000) -> int:
+    """Contact-array size for batched ``VectorEnv`` rollouts."""
+    if num_envs <= 1:
+        return base
+    return max(base, num_envs * _NACONMAX_PER_LANE)
 
 _MT_OVERRIDE = dict(partially_observable=False)
 _ML_OVERRIDE = dict(partially_observable=True)
@@ -318,6 +329,9 @@ class VectorEnv:
             if config is not None
             else SawyerXYZConfig(partially_observable=partially_observable, **config_overrides)
         )
+        scaled_naconmax = vector_env_naconmax(num_envs, self._config.naconmax)
+        if scaled_naconmax != self._config.naconmax:
+            self._config = replace(self._config, naconmax=scaled_naconmax)
         self.env = make(env_name, config=self._config)
 
         # Static task ordering for pseudorandom (cycling) selection.
