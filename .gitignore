@@ -1,0 +1,62 @@
+# Bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+*.whl
+
+# Test and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# JAX / GPU runtime caches (local)
+cwmjx_jax_cache/
+.jax_cache/
+
+# Logs and temp files
+*.log
+*.tmp
+.cache/
+
+# Local env overrides (secrets)
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Profiling
+*.prof
+*.lprof

@@ -1,0 +1,15 @@
+# Development and parity-test dependencies.
+#
+# MetaWorld pins mujoco==3.3.0, which conflicts with mujoco-mjx (mujoco 3.10).
+# Install dev deps without MetaWorld first, then add MetaWorld without deps:
+#   pip install -r requirements.txt
+#   pip install -r requirements-dev.txt
+#   pip install --no-deps metaworld==3.0.0
+
+-r requirements.txt
+
+pytest>=7.0
+gymnasium>=1.1
+scipy>=1.4.1
+imageio
+metaworld==3.0.0

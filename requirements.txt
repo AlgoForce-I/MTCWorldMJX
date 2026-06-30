@@ -1,0 +1,4 @@
+jax>=0.4.0
+flax>=0.8.0
+mujoco-mjx[warp]~=3.10.0
+numpy>=1.24
