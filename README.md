@@ -1,4 +1,4 @@
-# ContinualWorldMJX
+# Meta/Continual World MJX
 
 JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://github.com/google-deepmind/mujoco) with the **Warp** GPU backend. Environments expose `jax.jit`-compatible `reset` and `step` for high-throughput RL and continual-learning research, while a parity suite validates behavior against the original [MetaWorld](https://github.com/Farama-Foundation/Metaworld) (CPU MuJoCo) reference.
 
