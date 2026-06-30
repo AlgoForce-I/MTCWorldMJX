@@ -219,7 +219,7 @@ See `tests/test_benchmarks.py` and `metaworld_example.py`.
 
 ### Continual World (`cw_benchmarks`)
 
-Aligned with the [Continual World](https://github.com/ContinualAI/continualworld) protocol (v3 task names):
+Aligned with the [Continual World](https://github.com/awarelab/continual_world) protocol (v3 task names):
 
 | Export | Description |
 |--------|-------------|
