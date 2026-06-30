@@ -7,9 +7,10 @@ JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://
 | Milestone | Status |
 |-----------|--------|
 | 50 MetaWorld v3 Sawyer tasks in MJX | Done |
-| Parity validation vs MetaWorld | **55/55 tests passing** |
-| MetaWorld-style MT/ML benchmark scaffolding | Partial (`benchmarks.py`, vectorized rollouts) |
-| **Continual World benchmarks** | **Next step** |
+| Parity validation vs MetaWorld | **55/55 env tests passing** |
+| MetaWorld-style MT/ML benchmarks | Done (`mt_benchmarks.py`, `VectorEnv`, `rollout`) |
+| Continual World protocol scaffolding | **Partial** (`cw_benchmarks.py`, `cw_env.py`, JIT examples) |
+| CL metrics (FT / forgetting) & JAX learners | Next step |
 
 ## Features
 
@@ -17,6 +18,7 @@ JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://
 - **50 environments** — all standard MetaWorld v3 Sawyer XYZ tasks (`reach-v3` … `window-close-v3`).
 - **Validated against MetaWorld** — automated parity checks for observations, rewards, joint state, and metrics.
 - **Vectorized training API** — `VectorEnv`, `make_mt_envs`, `make_ml_envs_*`, and `rollout` for batched simulation.
+- **Continual World (CW10 / CW20)** — task sequences, sequential training env, per-task eval hooks, GPU-saturated rollouts.
 - **Persistent compilation caches** — JAX and Warp disk caches make repeated test/training runs much faster after the first compile.
 
 ## Requirements
@@ -62,7 +64,7 @@ print(state.obs.shape)  # (39,)
 print(float(state.reward))
 ```
 
-### Vectorized benchmark rollout
+### MetaWorld vectorized rollout (MT)
 
 ```python
 import jax
@@ -82,6 +84,37 @@ state, traj = rollout(env, state, policy, jax.random.PRNGKey(1), num_steps=200)
 # traj["reward"].shape == (200, 512)
 ```
 
+### Continual World (CW10)
+
+```python
+from MTCWorldMJX import CW10, CWConfig, make_cl_train_env, make_cl_test_envs, cw_obs_dim
+
+bench = CW10(seed=1)
+train_env = make_cl_train_env("CW10", config=CWConfig(seed=1, steps_per_task=1_000_000))
+test_envs = make_cl_test_envs("CW10", seed=1)
+
+print(bench.task_names)       # 10-task CW sequence
+print(cw_obs_dim(10))         # 49 = 39-dim MetaWorld obs + 10-dim task one-hot
+print(len(test_envs))         # one eval env per sequence slot
+```
+
+### Examples (repo root)
+
+| Script | Purpose |
+|--------|---------|
+| [`metaworld_example.py`](metaworld_example.py) | MT50-style vectorized rollout demo |
+| [`continualworld_example.py`](continualworld_example.py) | **CW10/CW20 JIT rollouts** (GPU-saturated by default) |
+
+```bash
+# MetaWorld: vectorized MT50 sample
+.venv/bin/python metaworld_example.py
+
+# Continual World: 512 lanes × 200 steps × 10 tasks (default saturated mode)
+.venv/bin/python continualworld_example.py
+.venv/bin/python continualworld_example.py --benchmark CW20
+.venv/bin/python continualworld_example.py --mode single --steps-per-task 2000
+```
+
 ### Available environments
 
 All tasks are registered in `MTCWorldMJX.env_dict.ENV_CLS_MAP` and constructible via `make(name)`:
@@ -93,10 +126,9 @@ button-press-topdown-wall-v3, coffee-button-v3, coffee-push-v3,
 coffee-pull-v3, dial-turn-v3, disassemble-v3, door-close-v3,
 door-lock-v3, door-open-v3, door-unlock-v3, drawer-close-v3,
 drawer-open-v3, faucet-close-v3, faucet-open-v3, hammer-v3,
-handle-press-v3, handle-press-side-v3, handle-pull-v3,
-handle-pull-side-v3, hand-insert-v3, lever-pull-v3,
-peg-insert-side-v3, peg-unplug-side-v3, pick-out-of-hole-v3,
-pick-place-v3, pick-place-wall-v3, plate-slide-v3,
+handle-press-side-v3, handle-pull-v3, handle-pull-side-v3,
+hand-insert-v3, lever-pull-v3, peg-insert-side-v3, peg-unplug-side-v3,
+pick-out-of-hole-v3, pick-place-v3, pick-place-wall-v3, plate-slide-v3,
 plate-slide-back-v3, plate-slide-side-v3, plate-slide-back-side-v3,
 push-v3, push-back-v3, push-wall-v3, reach-v3, reach-wall-v3,
 shelf-place-v3, soccer-v3, stick-push-v3, stick-pull-v3,
@@ -109,42 +141,40 @@ sweep-v3, sweep-into-v3, window-open-v3, window-close-v3
 MTCWorldMJX/
 ├── mjx_env.py          # State dataclass, model loading, MJX step helpers
 ├── env_dict.py         # ENV_CLS_MAP + make()
-├── benchmarks.py       # MT/ML task suites, VectorEnv, rollout
+├── mt_benchmarks.py    # MetaWorld MT/ML suites, VectorEnv, rollout
+├── cw_benchmarks.py    # CW10/CW20 task sequences, CWConfig, CL factories
+├── cw_env.py           # CWTaskEnv, ContinualLearningEnv, one-hot obs
+├── cw_eval.py          # Per-task eval helpers for CL policies
 ├── envs/
 │   ├── sawyer_xyz.py   # Base class: reset, step, obs, rewards
 │   ├── _helpers.py     # Shared reset/reward/obs utilities
 │   └── sawyer_*_v3.py  # Per-task implementations
 ├── assets/sawyer_xyz/  # MJCF models (from MetaWorld)
 └── utils/reward.py     # MetaWorld-compatible reward helpers
+
+metaworld_example.py      # MT vectorized demo
+continualworld_example.py # CW JIT rollout demo (saturated / single-lane)
 ```
 
 Each environment subclasses `SawyerXYZEnv` and implements task-specific reset bounds, object placement, observations, and reward logic. The base class handles hand settling, mocap control, observation packing (39-dim MetaWorld layout), and episode limits.
 
 **Observation layout (39-dim):** hand position (3) + gripper (1) + interleaved object blocks (pos/quat per object) + previous observation (18) + goal (3).
 
+**Continual World observations:** 39-dim layout + task-index one-hot (`cw_obs_dim(num_tasks)` → 49 for CW10).
+
 **Action space:** 4-dim continuous — end-effector delta (x, y, z) and gripper effort, scaled by `action_scale` (default 0.01).
 
 ## Testing
 
-### Full parity suite
-
-Runs smoke, rollout, and MetaWorld parity for every environment:
+### Full test suite
 
 ```bash
 .venv/bin/python -m pytest tests/ -q
 ```
 
-Expected result: **55 passed** (50 environment parity tests + 5 benchmark API tests).
+Expected result: **60 passed** — 50 environment parity tests, 5 MetaWorld benchmark API tests, 5 Continual World smoke tests.
 
 ### Single environment (streaming output)
-
-Use the standalone MT50 demo to see per-stage timings (useful when debugging compilation hangs):
-
-```bash
-.venv/bin/python main.py
-```
-
-Equivalent pytest invocation:
 
 ```bash
 .venv/bin/python -m pytest tests/test_reach_v3.py::test_reach_v3 -s
@@ -173,9 +203,11 @@ Parity tests use `PARITY_CONFIG` (50 solver iterations, `zero_geom_margins=True`
 - Warp kernel cache: `~/.cache/warp/`.
 - First run per environment compiles Warp kernels (can take seconds); subsequent runs load from cache.
 
-## Benchmark API (current)
+## Benchmark APIs
 
-`MTCWorldMJX.benchmarks` provides MetaWorld-style **MT** (multi-task) and **ML** (meta-learning) suites:
+### MetaWorld MT / ML (`mt_benchmarks`)
+
+Imported from the top-level package (`from MTCWorldMJX import …`):
 
 - `MT1`, `MT10`, `MT25`, `MT50`
 - `ML1`, `ML10`, `ML25`, `ML45`
@@ -183,7 +215,28 @@ Parity tests use `PARITY_CONFIG` (50 solver iterations, `zero_geom_margins=True`
 - `VectorEnv` — batched lanes over frozen task `rand_vec`s
 - `rollout` — JIT-friendly trajectory collection
 
-This covers task sampling, observation mode (partially observable for ML), and vectorized execution. See `tests/test_benchmarks.py` for usage examples.
+See `tests/test_benchmarks.py` and `metaworld_example.py`.
+
+### Continual World (`cw_benchmarks`)
+
+Aligned with the [Continual World](https://github.com/ContinualAI/continualworld) protocol (v3 task names):
+
+| Export | Description |
+|--------|-------------|
+| `TASK_SEQS`, `CW10`, `CW20` | CW10 and CW20 task order |
+| `CWConfig` | `steps_per_task`, `episode_horizon=200`, goal pools (`seed=1`), randomization |
+| `make_cl_train_env` | Sequential `ContinualLearningEnv` (single-lane CL training) |
+| `make_cl_test_envs` | Per-sequence-slot `CWTaskEnv` list for evaluation |
+| `cw_obs_dim` | Observation size with task one-hot |
+
+**Randomization modes** (via `CWConfig.randomization`): `deterministic`, `random_init_all` (default), `random_init_fixed20`, `random_init_small_box`.
+
+`continualworld_example.py` demonstrates two rollout modes:
+
+- **`saturated` (default)** — `VectorEnv` with 512 lanes per task; JIT `rollout` per CW slot (~80k+ env-steps/s on a warm GPU run).
+- **`single`** — one-lane `ContinualLearningEnv` matching the reference sequential CL env (~300–400 env-steps/s).
+
+Not yet implemented: forward-transfer / forgetting metrics (`cw_metrics`), JAX SAC, and CL regularizers from the reference repo.
 
 ## Known limitations
 
@@ -193,25 +246,21 @@ Parity is **tolerance-based**, not bit-exact:
 2. **`peg-unplug-side-v3`** — MetaWorld's double `reset_model()` leaves a large plug angular velocity that Warp does not reproduce; reset qvel uses a relaxed tolerance (`7.0`). Observations and step dynamics still match within normal bounds.
 3. **Parity depth** — one fixed reset vector and one fixed action per env; not long-horizon statistical equivalence.
 4. **GPU required** — the default `impl="warp"` backend needs CUDA.
+5. **Continual World** — protocol scaffolding and rollouts are in place; paper-matched training baselines (SAC + EWC / PackNet / …) are not bundled yet.
 
 ## Roadmap
 
-### Next: Continual World benchmarks
+### Next
 
-The immediate next milestone is integrating the **[Continual World](https://github.com/ContinualAI/continualworld)** benchmark protocols on top of this JAX-native MetaWorld port:
-
-- [ ] Continual World task sequences and evaluation splits
-- [ ] Standard continual-learning metrics (forward transfer, backward transfer, forgetting)
-- [ ] Reproducible experiment configs aligned with the original Continual World paper/baselines
-- [ ] End-to-end JAX training examples using `VectorEnv` + `rollout`
-
-MetaWorld MT/ML scaffolding in `benchmarks.py` is a foundation; Continual World adds the continual-learning experimental protocol.
+- [ ] Continual World metrics (forward transfer, forgetting, backward transfer)
+- [ ] JAX training baseline (e.g. SAC) on `ContinualLearningEnv` / saturated `VectorEnv`
+- [ ] Reproducible experiment configs aligned with the original Continual World paper
 
 ### Future
 
 - Longer-horizon parity sampling
 - Optional CPU MJX backend for debugging
-- Reference RL / continual-learning training scripts
+- End-to-end continual-learning experiment scripts
 
 ## Citation
 

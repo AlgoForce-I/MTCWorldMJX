@@ -2,7 +2,7 @@
 
 Run:
 
-    .venv/bin/python main.py
+    .venv/bin/python metaworld_example.py
 
 Builds all fifty MetaWorld v3 tasks as batched ``VectorEnv`` instances (observable
 goals), resets one task, and runs a short random rollout.

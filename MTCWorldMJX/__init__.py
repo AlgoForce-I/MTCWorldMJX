@@ -1,6 +1,6 @@
 """MTCWorldMJX: MetaWorld environments on MuJoCo MJX."""
 
-from MTCWorldMJX.benchmarks import (
+from MTCWorldMJX.mt_benchmarks import (
     Benchmark,
     CustomML,
     ML1,
@@ -23,10 +23,24 @@ from MTCWorldMJX.benchmarks import (
     rollout,
     tasks_for_env,
 )
+from MTCWorldMJX.cw_benchmarks import (
+    CW10,
+    CW20,
+    CWBenchmark,
+    CWConfig,
+    TASK_SEQS,
+    cw_obs_dim,
+    make_cl_test_envs,
+    make_cl_train_env,
+)
 from MTCWorldMJX.env_dict import ENV_CLS_MAP, make
 
 __all__ = [
     "Benchmark",
+    "CW10",
+    "CW20",
+    "CWBenchmark",
+    "CWConfig",
     "CustomML",
     "ENV_CLS_MAP",
     "ML1",
@@ -37,9 +51,13 @@ __all__ = [
     "MT10",
     "MT25",
     "MT50",
+    "TASK_SEQS",
     "Task",
     "VectorEnv",
+    "cw_obs_dim",
     "make",
+    "make_cl_test_envs",
+    "make_cl_train_env",
     "make_env_for_task",
     "make_ml_envs",
     "make_ml_envs_test",
