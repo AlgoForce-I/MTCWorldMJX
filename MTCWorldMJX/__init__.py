@@ -24,7 +24,6 @@ from MTCWorldMJX.benchmarks import (
     tasks_for_env,
 )
 from MTCWorldMJX.env_dict import ENV_CLS_MAP, make
-from MTCWorldMJX.envs.sawyer_assembly_peg_v3 import SawyerNutAssemblyEnvV3
 
 __all__ = [
     "Benchmark",
@@ -38,7 +37,6 @@ __all__ = [
     "MT10",
     "MT25",
     "MT50",
-    "SawyerNutAssemblyEnvV3",
     "Task",
     "VectorEnv",
     "make",

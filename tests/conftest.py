@@ -31,8 +31,10 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 import jax
 import pytest
 
-_CACHE_DIR = os.environ.get(
-    "CWMJX_JAX_CACHE_DIR", os.path.join(tempfile.gettempdir(), "cwmjx_jax_cache")
+_CACHE_DIR = (
+    os.environ.get("MTCWMJX_JAX_CACHE_DIR")
+    or os.environ.get("CWMJX_JAX_CACHE_DIR")  # legacy name
+    or os.path.join(tempfile.gettempdir(), "mtcworldmjx_jax_cache")
 )
 jax.config.update("jax_compilation_cache_dir", _CACHE_DIR)
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
-
 import jax
 import jax.numpy as jnp
 import mujoco
@@ -586,103 +584,6 @@ def reach_reward(
     return reward, tcp_to_target, in_place
 
 
-def push_reward_v2(
-    data,
-    action: jax.Array,
-    obj: jax.Array,
-    target: jax.Array,
-    obj_init_pos: jax.Array,
-    init_tcp: jax.Array,
-    gripper_fn,
-    *,
-    target_radius: float = 0.05,
-    obj_radius: float = 0.015,
-    pad_success_thresh: float = 0.05,
-    object_reach_radius: float = 0.01,
-    xz_thresh: float = 0.005,
-    tcp_opened: jax.Array | None = None,
-) -> tuple[jax.Array, dict[str, jax.Array]]:
-    tcp = gripper_fn(data)
-    tcp_to_obj = jnp.linalg.norm(obj - tcp)
-    target_to_obj = jnp.linalg.norm(obj - target)
-    target_to_obj_init = jnp.linalg.norm(obj_init_pos - target)
-
-    in_place = reward_utils.tolerance(
-        target_to_obj,
-        bounds=(0.0, target_radius),
-        margin=target_to_obj_init,
-        sigmoid="long_tail",
-    )
-
-    object_grasped = gripper_fn.caging_reward(  # type: ignore[attr-defined]
-        data,
-        action,
-        obj,
-        obj_init_pos,
-        init_tcp,
-        obj_radius=obj_radius,
-        pad_success_thresh=pad_success_thresh,
-        object_reach_radius=object_reach_radius,
-        xz_thresh=xz_thresh,
-        high_density=True,
-    ) if hasattr(gripper_fn, "caging_reward") else jnp.array(0.0)
-
-    reward = 2.0 * object_grasped
-    if tcp_opened is None:
-        tcp_opened = jnp.array(0.0)
-    lifted = obj[2] - 0.02 > obj_init_pos[2]
-    if (tcp_to_obj < 0.02) & (tcp_opened > 0):
-        reward = reward + 1.0 + reward + 5.0 * in_place
-    reward = jnp.where(target_to_obj < target_radius, 10.0, reward)
-
-    metrics = {
-        "success": (target_to_obj <= target_radius).astype(jnp.float32),
-        "near_object": (tcp_to_obj <= 0.03).astype(jnp.float32),
-        "grasp_success": (object_grasped >= 0.5).astype(jnp.float32),
-        "grasp_reward": object_grasped,
-        "in_place_reward": in_place,
-        "obj_to_target": target_to_obj,
-    }
-    return reward, metrics
-
-
-def pick_place_reward_v2(
-    data,
-    action: jax.Array,
-    obj: jax.Array,
-    target: jax.Array,
-    obj_init_pos: jax.Array,
-    tcp: jax.Array,
-    tcp_opened: jax.Array,
-    caging_reward: jax.Array,
-    *,
-    target_radius: float = 0.05,
-) -> tuple[jax.Array, dict[str, jax.Array]]:
-    obj_to_target = jnp.linalg.norm(obj - target)
-    tcp_to_obj = jnp.linalg.norm(obj - tcp)
-    in_place_margin = jnp.linalg.norm(obj_init_pos - target)
-    in_place = reward_utils.tolerance(
-        obj_to_target,
-        bounds=(0.0, target_radius),
-        margin=in_place_margin,
-        sigmoid="long_tail",
-    )
-    in_place_and_grasped = reward_utils.hamacher_product(caging_reward, in_place)
-    reward = in_place_and_grasped
-    lifted = (obj[2] - 0.01 > obj_init_pos[2]).astype(jnp.float32)
-    near = (tcp_to_obj < 0.02) & (tcp_opened > 0) & lifted
-    reward = jnp.where(near, reward + 1.0 + 5.0 * in_place, reward)
-    reward = jnp.where(obj_to_target < target_radius, 10.0, reward)
-
-    metrics = {
-        "success": (obj_to_target <= 0.07).astype(jnp.float32),
-        "near_object": (tcp_to_obj <= 0.03).astype(jnp.float32),
-        "grasp_success": lifted,
-        "obj_to_target": obj_to_target,
-    }
-    return reward, metrics
-
-
 def xz_plane_gripper_caging_reward(
     data,
     action: jax.Array,
@@ -745,60 +646,6 @@ def xz_plane_gripper_caging_reward(
         bounds=(0.0, xz_success_margin),
         margin=xz_margin,
         sigmoid="long_tail",
-    )
-    caging = reward_utils.hamacher_product(y_caging, x_z_caging)
-    gripping = jnp.where(caging > 0.95, y_grip, 0.0)
-    return (caging + gripping) / 2.0
-
-
-def xz_plane_gripper_caging_reward(
-    data,
-    action,
-    obj_pos,
-    obj_init_pos,
-    init_tcp,
-    init_left_pad,
-    init_right_pad,
-    leftpad_body_id,
-    rightpad_body_id,
-    tcp,
-    *,
-    obj_radius,
-    pad_success_margin=0.05,
-    grip_success_extra=0.01,
-    xz_success_margin=0.005,
-):
-    from MTCWorldMJX import mjx_env
-
-    del action
-    left_pad = mjx_env.body_xpos(data, jnp.array(leftpad_body_id))
-    right_pad = mjx_env.body_xpos(data, jnp.array(rightpad_body_id))
-    grip_margin = obj_radius + grip_success_extra
-    right_caging = reward_utils.tolerance(
-        obj_pos[1] - right_pad[1], bounds=(obj_radius, pad_success_margin),
-        margin=jnp.abs(jnp.abs(obj_pos[1] - init_right_pad[1]) - pad_success_margin), sigmoid="long_tail",
-    )
-    left_caging = reward_utils.tolerance(
-        left_pad[1] - obj_pos[1], bounds=(obj_radius, pad_success_margin),
-        margin=jnp.abs(jnp.abs(obj_pos[1] - init_left_pad[1]) - pad_success_margin), sigmoid="long_tail",
-    )
-    right_grip = reward_utils.tolerance(
-        obj_pos[1] - right_pad[1], bounds=(obj_radius, grip_margin),
-        margin=jnp.abs(jnp.abs(obj_pos[1] - init_right_pad[1]) - pad_success_margin), sigmoid="long_tail",
-    )
-    left_grip = reward_utils.tolerance(
-        left_pad[1] - obj_pos[1], bounds=(obj_radius, grip_margin),
-        margin=jnp.abs(jnp.abs(obj_pos[1] - init_left_pad[1]) - pad_success_margin), sigmoid="long_tail",
-    )
-    y_caging = reward_utils.hamacher_product(right_caging, left_caging)
-    y_grip = reward_utils.hamacher_product(right_grip, left_grip)
-    tcp_xz = tcp + jnp.array([0.0, -tcp[1], 0.0])
-    obj_xz = obj_pos + jnp.array([0.0, -obj_pos[1], 0.0])
-    init_obj_xz = obj_init_pos + jnp.array([0.0, -obj_init_pos[1], 0.0])
-    init_tcp_xz = init_tcp + jnp.array([0.0, -init_tcp[1], 0.0])
-    xz_margin = jnp.linalg.norm(init_obj_xz - init_tcp_xz) - xz_success_margin
-    x_z_caging = reward_utils.tolerance(
-        jnp.linalg.norm(tcp_xz - obj_xz), bounds=(0.0, xz_success_margin), margin=xz_margin, sigmoid="long_tail",
     )
     caging = reward_utils.hamacher_product(y_caging, x_z_caging)
     gripping = jnp.where(caging > 0.95, y_grip, 0.0)

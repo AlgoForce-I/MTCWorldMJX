@@ -232,8 +232,10 @@ def _make_tasks(
 ) -> list[Task]:
     """Sample ``n_goals`` unique reset vectors per environment."""
     rng = jax.random.PRNGKey(0 if seed is None else seed)
-    base_config = config or SawyerXYZConfig(partially_observable=partially_observable)
-    base_config = replace(base_config, partially_observable=partially_observable)
+    base_config = replace(
+        config or SawyerXYZConfig(),
+        partially_observable=partially_observable,
+    )
 
     tasks: list[Task] = []
     for env_name in env_names:

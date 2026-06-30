@@ -1,4 +1,4 @@
-# Meta/Continual World MJX
+# MTCWorldMJX
 
 JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://github.com/google-deepmind/mujoco) with the **Warp** GPU backend. Environments expose `jax.jit`-compatible `reset` and `step` for high-throughput RL and continual-learning research, while a parity suite validates behavior against the original [MetaWorld](https://github.com/Farama-Foundation/Metaworld) (CPU MuJoCo) reference.
 
@@ -78,13 +78,13 @@ def policy(obs, key):
     return jnp.zeros((obs.shape[0], 4))
 
 
-state, traj = rollout(env, state, policy, jax.random.PRNGKey(1), length=200)
+state, traj = rollout(env, state, policy, jax.random.PRNGKey(1), num_steps=200)
 # traj["reward"].shape == (200, 512)
 ```
 
 ### Available environments
 
-All tasks are registered in `ContinualWorldMJX.env_dict.ENV_CLS_MAP` and constructible via `make(name)`:
+All tasks are registered in `MTCWorldMJX.env_dict.ENV_CLS_MAP` and constructible via `make(name)`:
 
 ```
 assembly-v3, basketball-v3, bin-picking-v3, box-close-v3,
@@ -106,7 +106,7 @@ sweep-v3, sweep-into-v3, window-open-v3, window-close-v3
 ## Architecture
 
 ```
-ContinualWorldMJX/
+MTCWorldMJX/
 ├── mjx_env.py          # State dataclass, model loading, MJX step helpers
 ├── env_dict.py         # ENV_CLS_MAP + make()
 ├── benchmarks.py       # MT/ML task suites, VectorEnv, rollout
@@ -138,11 +138,10 @@ Expected result: **55 passed** (50 environment parity tests + 5 benchmark API te
 
 ### Single environment (streaming output)
 
-Use the standalone runner to see per-stage timings (useful when debugging compilation hangs):
+Use the standalone MT50 demo to see per-stage timings (useful when debugging compilation hangs):
 
 ```bash
-.venv/bin/python main.py reach_v3
-.venv/bin/python main.py box_close_v3
+.venv/bin/python main.py
 ```
 
 Equivalent pytest invocation:
@@ -170,13 +169,13 @@ Parity tests use `PARITY_CONFIG` (50 solver iterations, `zero_geom_margins=True`
 ### Test infrastructure notes
 
 - **Do not use `pytest-forked` / `pytest-isolate`** — Warp initializes CUDA in the parent process; forking breaks the GPU context.
-- JAX persistent cache: `$TMPDIR/cwmjx_jax_cache` (override with `CWMJX_JAX_CACHE_DIR`).
+- JAX persistent cache: `$TMPDIR/mtcworldmjx_jax_cache` (override with `MTCWMJX_JAX_CACHE_DIR`; legacy `CWMJX_JAX_CACHE_DIR` still works).
 - Warp kernel cache: `~/.cache/warp/`.
 - First run per environment compiles Warp kernels (can take seconds); subsequent runs load from cache.
 
 ## Benchmark API (current)
 
-`ContinualWorldMJX.benchmarks` provides MetaWorld-style **MT** (multi-task) and **ML** (meta-learning) suites:
+`MTCWorldMJX.benchmarks` provides MetaWorld-style **MT** (multi-task) and **ML** (meta-learning) suites:
 
 - `MT1`, `MT10`, `MT25`, `MT50`
 - `ML1`, `ML10`, `ML25`, `ML45`

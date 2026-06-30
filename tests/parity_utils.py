@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import importlib
 import time
 from typing import Any, Type
 
@@ -11,18 +10,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
-
-@contextlib.contextmanager
-def _timed(label: str):
-    """Print a flushed start/end + duration so it streams under ``pytest -s``."""
-    print(f"  [start] {label}", flush=True)
-    t0 = time.perf_counter()
-    try:
-        yield
-    finally:
-        dt = time.perf_counter() - t0
-        print(f"  [done ] {label}: {dt:.3f}s", flush=True)
 
 from MTCWorldMJX.envs.sawyer_xyz import SawyerXYZConfig, SawyerXYZEnv
 
@@ -60,6 +47,18 @@ MIN_XY_DIST = {
     "box-close-v3": 0.25,
     "disassemble-v3": 0.1,
 }
+
+
+@contextlib.contextmanager
+def _timed(label: str):
+    """Print a flushed start/end + duration so it streams under ``pytest -s``."""
+    print(f"  [start] {label}", flush=True)
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        dt = time.perf_counter() - t0
+        print(f"  [done ] {label}: {dt:.3f}s", flush=True)
 
 
 def _ensure_min_xy_dist(
@@ -175,7 +174,7 @@ def _make_default_env(env_name: str) -> _DefaultEnv:
 
     with _timed(f"make({env_name}) [load_mj_model + mjx.put_model warp kernels]"):
         env = make(env_name)
-    with _timed(f"_DefaultEnv wrap (jax.jit is lazy, should be ~0s)"):
+    with _timed("_DefaultEnv wrap (jax.jit is lazy, should be ~0s)"):
         denv = _DefaultEnv(env)
     return denv
 
