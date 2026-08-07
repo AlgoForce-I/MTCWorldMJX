@@ -1,5 +1,9 @@
 # MTCWorldMJX
 
+[![PyPI version](https://img.shields.io/pypi/v/MTCWorldMJX.svg)](https://pypi.org/project/MTCWorldMJX/)
+[![Python](https://img.shields.io/pypi/pyversions/MTCWorldMJX.svg)](https://pypi.org/project/MTCWorldMJX/)
+[![License](https://img.shields.io/pypi/l/MTCWorldMJX.svg)](https://github.com/AlgoForce-I/MTCWorldMJX/blob/main/LICENSE)
+
 JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://github.com/google-deepmind/mujoco) with the **Warp** GPU backend. Environments expose `jax.jit`-compatible `reset` and `step` for high-throughput RL and continual-learning research, while a parity suite validates behavior against the original [MetaWorld](https://github.com/Farama-Foundation/Metaworld) (CPU MuJoCo) reference.
 
 ## Status
@@ -10,6 +14,7 @@ JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://
 | Parity validation vs MetaWorld | **55/55 env tests passing** |
 | MetaWorld-style MT/ML benchmarks | Done (`mt_benchmarks.py`, `VectorEnv`, `rollout`) |
 | Continual World protocol scaffolding | **Partial** (`cw_benchmarks.py`, `cw_env.py`, JIT examples) |
+| Published on PyPI (`pip install MTCWorldMJX`) | Done (`0.1.1`) |
 | CL metrics (FT / forgetting) & JAX learners | Next step |
 
 ## Features
@@ -30,7 +35,15 @@ JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://
 ## Installation
 
 ```bash
-git clone <repo-url> MTCWorldMJX
+pip install MTCWorldMJX
+```
+
+The package ships with MJCF assets and pulls in `jax`, `flax`, `mujoco-mjx[warp]`, and `numpy`. Import as `MTCWorldMJX` (same as the PyPI name).
+
+### From source (development)
+
+```bash
+git clone https://github.com/AlgoForce-I/MTCWorldMJX.git
 cd MTCWorldMJX
 python -m venv .venv
 source .venv/bin/activate
