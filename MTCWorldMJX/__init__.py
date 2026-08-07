@@ -33,10 +33,17 @@ from MTCWorldMJX.cw_benchmarks import (
     make_cl_test_envs,
     make_cl_train_env,
 )
+from MTCWorldMJX.cw_metrics import (
+    CLScores,
+    auc,
+    compute_cl_scores,
+    scores_from_eval_matrix,
+)
 from MTCWorldMJX.env_dict import ENV_CLS_MAP, make
 
 __all__ = [
     "Benchmark",
+    "CLScores",
     "CW10",
     "CW20",
     "CWBenchmark",
@@ -54,6 +61,8 @@ __all__ = [
     "TASK_SEQS",
     "Task",
     "VectorEnv",
+    "auc",
+    "compute_cl_scores",
     "cw_obs_dim",
     "make",
     "make_cl_test_envs",
@@ -66,5 +75,6 @@ __all__ = [
     "rand_vecs_for_env",
     "reset_for_task",
     "rollout",
+    "scores_from_eval_matrix",
     "tasks_for_env",
 ]
