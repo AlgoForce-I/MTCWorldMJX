@@ -13,9 +13,9 @@ JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://
 | 50 MetaWorld v3 Sawyer tasks in MJX | Done |
 | Parity validation vs MetaWorld | **55/55 env tests passing** |
 | MetaWorld-style MT/ML benchmarks | Done (`mt_benchmarks.py`, `VectorEnv`, `rollout`) |
-| Continual World protocol scaffolding | **Partial** (`cw_benchmarks.py`, `cw_env.py`, JIT examples) |
+| Continual World protocol scaffolding | **Partial** (`cw_benchmarks.py`, `cw_env.py`, `cw_metrics.py`, JIT examples) |
 | Published on PyPI (`pip install MTCWorldMJX`) | Done (`0.1.1`) |
-| CL metrics (FT / forgetting) & JAX learners | Next step |
+| CL metrics (P / F / B / FT) | Done (`cw_metrics.py`) |
 
 ## Features
 
@@ -23,7 +23,7 @@ JAX-native MetaWorld v3 manipulation environments built on [MuJoCo MJX](https://
 - **50 environments** — all standard MetaWorld v3 Sawyer XYZ tasks (`reach-v3` … `window-close-v3`).
 - **Validated against MetaWorld** — automated parity checks for observations, rewards, joint state, and metrics.
 - **Vectorized training API** — `VectorEnv`, `make_mt_envs`, `make_ml_envs_*`, and `rollout` for batched simulation.
-- **Continual World (CW10 / CW20)** — task sequences, sequential training env, per-task eval hooks, GPU-saturated rollouts.
+- **Continual World (CW10 / CW20)** — task sequences, sequential training env, per-task eval hooks, GPU-saturated rollouts, and paper CL metrics (`compute_cl_scores`).
 - **Persistent compilation caches** — JAX and Warp disk caches make repeated test/training runs much faster after the first compile.
 
 ## Requirements
@@ -111,6 +111,33 @@ print(cw_obs_dim(10))         # 49 = 39-dim MetaWorld obs + 10-dim task one-hot
 print(len(test_envs))         # one eval env per sequence slot
 ```
 
+### Continual World metrics
+
+Paper-aligned scores from [Continual World](https://github.com/awarelab/continual_world) (§4.1 / Appendix E.1). Pass success rates you collect during / after training:
+
+```python
+from MTCWorldMJX import compute_cl_scores, scores_from_eval_matrix
+
+# end_of_training_success[i] = p_i(i·Δ)  — success on task i right after finishing it
+# final_success[i]            = p_i(T)    — success on task i at the end of the sequence
+scores = compute_cl_scores(end_of_training_success, final_success)
+print(scores.average_performance)  # P(T)
+print(scores.forgetting)            # mean F_i = p_i(i·Δ) - p_i(T)
+print(scores.backward_transfer)     # mean B_i = max(0, p_i(T) - p_i(i·Δ))
+
+# Optional forward transfer (needs single-task baseline AUCs):
+scores = compute_cl_scores(
+    end_of_training_success,
+    final_success,
+    train_auc=train_auc,        # AUC_i during CL training of task i
+    baseline_auc=baseline_auc,  # AUC_i^b from separate single-task runs
+)
+print(scores.forward_transfer)  # mean FT_i
+
+# Or from a square eval matrix: matrix[t, i] = success on task i after finishing task t
+scores = scores_from_eval_matrix(success_matrix)
+```
+
 ### Examples (repo root)
 
 | Script | Purpose |
@@ -158,6 +185,7 @@ MTCWorldMJX/
 ├── cw_benchmarks.py    # CW10/CW20 task sequences, CWConfig, CL factories
 ├── cw_env.py           # CWTaskEnv, ContinualLearningEnv, one-hot obs
 ├── cw_eval.py          # Per-task eval helpers for CL policies
+├── cw_metrics.py       # Continual World P / F / B / FT scores
 ├── envs/
 │   ├── sawyer_xyz.py   # Base class: reset, step, obs, rewards
 │   ├── _helpers.py     # Shared reset/reward/obs utilities
@@ -185,7 +213,7 @@ Each environment subclasses `SawyerXYZEnv` and implements task-specific reset bo
 .venv/bin/python -m pytest tests/ -q
 ```
 
-Expected result: **60 passed** — 50 environment parity tests, 5 MetaWorld benchmark API tests, 5 Continual World smoke tests.
+Expected result: **67 passed** — 50 environment parity tests, 5 MetaWorld benchmark API tests, 5 Continual World smoke tests, 7 CL metrics unit tests.
 
 ### Single environment (streaming output)
 
@@ -230,7 +258,7 @@ Imported from the top-level package (`from MTCWorldMJX import …`):
 
 See `tests/test_benchmarks.py` and `metaworld_example.py`.
 
-### Continual World (`cw_benchmarks`)
+### Continual World (`cw_benchmarks`, `cw_metrics`)
 
 Aligned with the [Continual World](https://github.com/awarelab/continual_world) protocol (v3 task names):
 
@@ -241,6 +269,9 @@ Aligned with the [Continual World](https://github.com/awarelab/continual_world) 
 | `make_cl_train_env` | Sequential `ContinualLearningEnv` (single-lane CL training) |
 | `make_cl_test_envs` | Per-sequence-slot `CWTaskEnv` list for evaluation |
 | `cw_obs_dim` | Observation size with task one-hot |
+| `compute_cl_scores` | Average performance, forgetting, backward transfer; FT if AUCs given |
+| `scores_from_eval_matrix` | Same scores from a square `(N, N)` eval matrix |
+| `CLScores` | Dataclass returned by the metric helpers |
 
 **Randomization modes** (via `CWConfig.randomization`): `deterministic`, `random_init_all` (default), `random_init_fixed20`, `random_init_small_box`.
 
@@ -249,7 +280,7 @@ Aligned with the [Continual World](https://github.com/awarelab/continual_world) 
 - **`saturated` (default)** — `VectorEnv` with 512 lanes per task; JIT `rollout` per CW slot (~80k+ env-steps/s on a warm GPU run).
 - **`single`** — one-lane `ContinualLearningEnv` matching the reference sequential CL env (~300–400 env-steps/s).
 
-Not yet implemented: forward-transfer / forgetting metrics (`cw_metrics`), JAX SAC, and CL regularizers from the reference repo.
+This package provides the Continual World **benchmark** (envs, sequences, eval helpers, metrics). Training algorithms are out of scope; bring your own learner.
 
 ## Known limitations
 
@@ -259,21 +290,20 @@ Parity is **tolerance-based**, not bit-exact:
 2. **`peg-unplug-side-v3`** — MetaWorld's double `reset_model()` leaves a large plug angular velocity that Warp does not reproduce; reset qvel uses a relaxed tolerance (`7.0`). Observations and step dynamics still match within normal bounds.
 3. **Parity depth** — one fixed reset vector and one fixed action per env; not long-horizon statistical equivalence.
 4. **GPU required** — the default `impl="warp"` backend needs CUDA.
-5. **Continual World** — protocol scaffolding and rollouts are in place; paper-matched training baselines (SAC + EWC / PackNet / …) are not bundled yet.
+5. **Continual World** — this repo ships the benchmark only (envs, protocol, metrics). Paper training methods (SAC, EWC, PackNet, …) are not included; use an external learner.
 
 ## Roadmap
 
 ### Next
 
-- [ ] Continual World metrics (forward transfer, forgetting, backward transfer)
-- [ ] JAX training baseline (e.g. SAC) on `ContinualLearningEnv` / saturated `VectorEnv`
-- [ ] Reproducible experiment configs aligned with the original Continual World paper
+- [x] Continual World metrics (average performance, forgetting, backward transfer, forward transfer)
+- [ ] Reproducible experiment configs / eval logging aligned with the original Continual World paper
+- [ ] End-to-end continual-learning experiment scripts that call an external learner
 
 ### Future
 
 - Longer-horizon parity sampling
 - Optional CPU MJX backend for debugging
-- End-to-end continual-learning experiment scripts
 
 ## Citation
 
