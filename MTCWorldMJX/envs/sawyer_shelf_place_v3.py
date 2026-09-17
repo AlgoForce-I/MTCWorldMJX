@@ -96,7 +96,20 @@ class SawyerShelfPlaceEnvV3(SawyerXYZEnv):
             obj_radius=0.02, pad_success_thresh=0.05, object_reach_radius=0.01, xz_thresh=0.01,
         )
         reward = reward_utils.hamacher_product(object_grasped, in_place)
-        behind = (obj[1] > target[1]) & (0.0 < obj[2]) & (obj[2] < 0.24)
+        below_shelf_top = (0.0 < obj[2]) & (obj[2] < 0.24)
+        in_x_band = (target[0] - 0.15 < obj[0]) & (obj[0] < target[0] + 0.15)
+        front_edge = target[1] - 3.0 * self.TARGET_RADIUS
+        in_front = (front_edge < obj[1]) & (obj[1] < target[1])
+        # MetaWorld discounts in_place while the block is pressed against the shelf front.
+        z_scaling = jnp.clip((0.24 - obj[2]) / 0.24, 0.0, 1.0)
+        y_scaling = jnp.clip((obj[1] - front_edge) / (3.0 * self.TARGET_RADIUS), 0.0, 1.0)
+        bound_loss = reward_utils.hamacher_product(y_scaling, z_scaling)
+        in_place = jnp.where(
+            below_shelf_top & in_x_band & in_front,
+            jnp.clip(in_place - bound_loss, 0.0, 1.0),
+            in_place,
+        )
+        behind = below_shelf_top & in_x_band & (obj[1] > target[1])
         in_place = jnp.where(behind, 0.0, in_place)
         near = (jnp.linalg.norm(obj - tcp) < 0.025) & (tcp_opened > 0) & (obj[2] - 0.01 > info["obj_init_pos"][2])
         reward = jnp.where(near, reward + 1.0 + 5.0 * in_place, reward)

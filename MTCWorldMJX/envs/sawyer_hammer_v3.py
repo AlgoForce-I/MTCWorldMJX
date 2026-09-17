@@ -125,8 +125,10 @@ class SawyerHammerEnvV3(SawyerXYZEnv):
         )
         reward = (2.0 * reward_grab + 6.0 * reward_in_place) * reward_quat
         nail_qpos = data.qpos[self._nail_joint_adr]
-        success = (nail_qpos > 0.09) & (reward > 5.0)
-        reward = jnp.where(success, 10.0, reward)
+        success = nail_qpos > 0.09
+        # MetaWorld gates only the reward override on reward > 5 (anti-hacking);
+        # the reported success is the nail depth alone.
+        reward = jnp.where(success & (reward > 5.0), 10.0, reward)
         metrics = {
             "success": success.astype(jnp.float32),
             "near_object": reward_quat,

@@ -156,7 +156,9 @@ class SawyerStickPushEnvV3(_SawyerStickBase):
             reward,
         )
         container_to_target = jnp.linalg.norm(container - target)
-        reward = jnp.where(container_to_target <= self.TARGET_RADIUS, 10.0, reward)
+        # MetaWorld nests the success bonus under the grasp branch; without the
+        # stick, shoving the container onto the goal must not pay out.
+        reward = jnp.where(grasped & (container_to_target <= self.TARGET_RADIUS), 10.0, reward)
         metrics = {
             "success": (grasped & (container_to_target <= self.TARGET_RADIUS)).astype(jnp.float32),
             "near_object": (tcp_to_stick <= 0.03).astype(jnp.float32),
@@ -243,16 +245,19 @@ class SawyerStickPullEnvV3(_SawyerStickBase):
             (tcp_to_stick < 0.02) & (tcp_opened > 0) & (stick[2] - 0.01 > info["stick_init_pos"][2])
         )
         object_grasped = jnp.where(grasped, 1.0, object_grasped)
-        reward = reward_utils.hamacher_product(object_grasped, stick_in_place)
-        reward = jnp.where(grasped, 1.0 + reward + 5.0 * stick_in_place, reward)
+        in_place_and_object_grasped = reward_utils.hamacher_product(object_grasped, stick_in_place)
+        reward = in_place_and_object_grasped
+        reward = jnp.where(grasped, 1.0 + in_place_and_object_grasped + 5.0 * stick_in_place, reward)
         inserted = self._stick_inserted(handle, end_of_stick)
         reward = jnp.where(
             grasped & inserted,
-            1.0 + reward + 5.0 + 2.0 * stick_in_place_2 + 1.0 * container_in_place,
+            1.0 + in_place_and_object_grasped + 5.0 + 2.0 * stick_in_place_2 + 1.0 * container_in_place,
             reward,
         )
         handle_to_target = jnp.linalg.norm(handle - target)
-        reward = jnp.where(handle_to_target <= 0.12, 10.0, reward)
+        # MetaWorld only pays the success bonus inside the grasped-and-inserted
+        # branch; dragging the container onto the goal without the stick must not.
+        reward = jnp.where(grasped & inserted & (handle_to_target <= 0.12), 10.0, reward)
         metrics = {
             "success": (inserted & (handle_to_target <= 0.12)).astype(jnp.float32),
             "near_object": (tcp_to_stick <= 0.03).astype(jnp.float32),
