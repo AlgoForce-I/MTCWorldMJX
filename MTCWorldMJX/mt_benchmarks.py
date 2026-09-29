@@ -295,13 +295,15 @@ class VectorEnv:
 
     The model is loaded once. ``reset`` assigns one task (``rand_vec``) per lane
     and ``step`` is vmapped across lanes with functional, on-device autoreset:
-    when a lane is done it is restored to its episode's initial state.
+    when a lane is done it is restored to its episode's initial state. With
+    ``rand_vecs=None`` every reset samples a fresh ``rand_vec`` per lane instead
+    (Continual World's ``random_init_all``); ``task_idx`` is then ``-1``.
     """
 
     def __init__(
         self,
         env_name: str,
-        rand_vecs: jax.Array,
+        rand_vecs: jax.Array | None,
         num_envs: int,
         config: SawyerXYZConfig | None = None,
         *,
@@ -321,8 +323,8 @@ class VectorEnv:
         self.terminate_on_success = terminate_on_success
         self.autoreset = autoreset
 
-        self.rand_vecs = jnp.asarray(rand_vecs, dtype=jnp.float32)
-        self.n_tasks = int(self.rand_vecs.shape[0])
+        self.rand_vecs = None if rand_vecs is None else jnp.asarray(rand_vecs, dtype=jnp.float32)
+        self.n_tasks = 0 if self.rand_vecs is None else int(self.rand_vecs.shape[0])
 
         self._config = (
             replace(config, partially_observable=partially_observable, **config_overrides)
@@ -351,10 +353,14 @@ class VectorEnv:
 
     def _reset_impl(self, key: jax.Array, start: jax.Array) -> mjx_env.State:
         key, idx_key = jax.random.split(key)
-        task_idx = self._select_task_indices(idx_key, start)
-        rvs = self.rand_vecs[task_idx]
         keys = jax.random.split(key, self.num_envs)
-        state = jax.vmap(lambda k, rv: self.env.reset(k, rand_vec=rv))(keys, rvs)
+        if self.rand_vecs is None:
+            task_idx = jnp.full((self.num_envs,), -1, dtype=jnp.int32)
+            state = jax.vmap(self.env.reset)(keys)
+        else:
+            task_idx = self._select_task_indices(idx_key, start)
+            rvs = self.rand_vecs[task_idx]
+            state = jax.vmap(lambda k, rv: self.env.reset(k, rand_vec=rv))(keys, rvs)
 
         info = dict(state.info)
         info["first_data"] = state.data

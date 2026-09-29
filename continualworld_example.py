@@ -30,7 +30,7 @@ from MTCWorldMJX import CWConfig, cw_obs_dim, make_cl_test_envs, make_cl_train_e
 from MTCWorldMJX.cw_benchmarks import CWBenchmark, TASK_SEQS, cw_sawyer_config
 from MTCWorldMJX.cw_env import CWTaskEnv, ContinualLearningEnv
 from MTCWorldMJX import mjx_env
-from MTCWorldMJX.mt_benchmarks import VectorEnv, rand_vecs_for_env
+from MTCWorldMJX.mt_benchmarks import VectorEnv
 
 SEED = 1
 NUM_ENVS = 512
@@ -73,14 +73,17 @@ def build_saturated_plan(
     *,
     num_envs: int,
 ) -> list[SaturatedTaskPlan]:
-    """VectorEnv per CW sequence slot (``random_init_all`` goal sampling)."""
+    """VectorEnv per CW sequence slot.
+
+    Each ``reset`` draws a fresh goal per lane (``random_init_all``); on-device
+    autoreset replays a lane's episode, so goals change only on ``reset``.
+    """
     sawyer_config = cw_sawyer_config(benchmark.config)
     plans: list[SaturatedTaskPlan] = []
     for task_idx, env_name in enumerate(benchmark.task_names):
-        rand_vecs = rand_vecs_for_env(benchmark.tasks, env_name)
         venv = VectorEnv(
             env_name,
-            rand_vecs,
+            None,
             num_envs,
             config=sawyer_config,
             partially_observable=False,

@@ -43,6 +43,10 @@ BATCH4_ENVS = [
     ("plate-slide-side-v3", SawyerPlateSlideSideEnvV3, "plate_slide_side_v3"),
     ("plate-slide-back-side-v3", SawyerPlateSlideBackSideEnvV3, "plate_slide_back_side_v3"),
     ("peg-insert-side-v3", SawyerPegInsertionSideEnvV3, "peg_insert_side_v3"),
+    # The seated plug leaves the double reset's hand settle with a chaotic residual
+    # spin (MetaWorld ~6 rad/s); qpos stays within tolerance. This loose bound once
+    # hid a plug sinking through a stale box collider; test_expert_rollouts checks
+    # that the plug stays put.
     ("peg-unplug-side-v3", SawyerPegUnplugSideEnvV3, "peg_unplug_side_v3", {"qvel_atol": 7.0}),
     ("disassemble-v3", SawyerNutDisassembleEnvV3, "disassemble_v3"),
 ]

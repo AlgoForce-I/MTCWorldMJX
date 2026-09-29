@@ -55,6 +55,7 @@ class SawyerXYZEnv(abc.ABC):
         )
         self._reset_mocap_welds(self._mj_model)
         self._mjx_model = mjx.put_model(self._mj_model, impl=self.config.impl)
+        self._static_geoms = mjx_env.StaticGeoms(self._mj_model)
         self._post_init_ids()
         self._init_qpos = jnp.array(self._mj_model.qpos0)
         self._init_qvel = jnp.zeros(self._mj_model.nv)
@@ -121,6 +122,19 @@ class SawyerXYZEnv(abc.ABC):
     @abc.abstractmethod
     def mocap_high(self) -> jax.Array:
         """Upper bounds for mocap XYZ control."""
+
+    @classmethod
+    def goal_space_bounds(cls) -> tuple[np.ndarray, np.ndarray]:
+        """MetaWorld's ``goal_space``: the clip range of the visible goal observation."""
+        from MTCWorldMJX.env_dict import ENV_CLS_MAP
+        from MTCWorldMJX.envs._goal_spaces import GOAL_SPACES
+
+        names = {klass: name for name, klass in ENV_CLS_MAP.items()}
+        for klass in cls.__mro__:
+            if klass in names:
+                low, high = GOAL_SPACES[names[klass]]
+                return np.asarray(low), np.asarray(high)
+        return np.full(3, -np.inf), np.full(3, np.inf)
 
     @abc.abstractmethod
     def random_reset_bounds(self) -> tuple[jax.Array, jax.Array]:
@@ -292,6 +306,7 @@ class SawyerXYZEnv(abc.ABC):
         if self._uses_metaworld_double_reset():
             data, _ = self._settle_hand(model, data)
             model, data = self.apply_reset_state(model, data, reset_state)
+            data = self._static_geoms.refresh(model, data)
             data = data.replace(qpos=self._init_qpos, qvel=self._init_qvel)
             data, init_tcp = self._settle_hand(model, data)
         else:
@@ -302,7 +317,9 @@ class SawyerXYZEnv(abc.ABC):
             model, data, reset_state
         )
         model, data = self.apply_reset_state(model, data, reset_state)
+        data = self._static_geoms.refresh(model, data)
         model, data, reset_state = self.finalize_reset(model, data, reset_state)
+        data = self._static_geoms.refresh(model, data)
         if not reset_state.get("skip_final_forward", False):
             data = mjx.forward(model, data)
 
@@ -356,6 +373,10 @@ class SawyerXYZEnv(abc.ABC):
 
         curr_obs = self._get_curr_obs_no_goal(data)
         obs = self._get_obs(data, state.info["prev_obs"], state.info["goal_pos"])
+        if self.config.partially_observable:
+            goal_low = goal_high = jnp.zeros(3)
+        else:
+            goal_low, goal_high = (jnp.asarray(b, dtype=obs.dtype) for b in self.goal_space_bounds())
         obs = jnp.clip(
             obs,
             jnp.concatenate(
@@ -366,7 +387,7 @@ class SawyerXYZEnv(abc.ABC):
                     HAND_SPACE_LOW,
                     jnp.array([-1.0]),
                     jnp.full(OBS_OBJ_MAX_LEN, -jnp.inf),
-                    jnp.zeros(3),
+                    goal_low,
                 ]
             ),
             jnp.concatenate(
@@ -377,7 +398,7 @@ class SawyerXYZEnv(abc.ABC):
                     HAND_SPACE_HIGH,
                     jnp.array([1.0]),
                     jnp.full(OBS_OBJ_MAX_LEN, jnp.inf),
-                    jnp.zeros(3) if self.config.partially_observable else jnp.full(3, jnp.inf),
+                    goal_high,
                 ]
             ),
         )

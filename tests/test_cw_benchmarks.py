@@ -39,6 +39,17 @@ def test_cl_test_env_obs_shape() -> None:
     assert int(state.info["task_idx"]) == 0
 
 
+def test_cl_test_envs_follow_config_randomization() -> None:
+    # Continual World evaluates with get_single_env(...) at its default
+    # randomization, random_init_all: a fresh goal every test episode.
+    test_envs = make_cl_test_envs("CW10", seed=1)
+    assert {env.randomization for env in test_envs} == {"random_init_all"}
+    fixed = make_cl_test_envs("CW10", config=CWConfig(randomization="deterministic"), seed=1)
+    assert {env.randomization for env in fixed} == {"deterministic"}
+    explicit = make_cl_test_envs("CW10", seed=1, randomization="random_init_fixed20")
+    assert {env.randomization for env in explicit} == {"random_init_fixed20"}
+
+
 def test_cl_train_env_task_switch() -> None:
     config = CWConfig(seed=1, steps_per_task=5, episode_horizon=200)
     env = make_cl_train_env("CW10", config=config)

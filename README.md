@@ -237,9 +237,21 @@ For each environment, against installed MetaWorld with a **fixed** `rand_vec` an
 
 Parity tests use `PARITY_CONFIG` (50 solver iterations, `zero_geom_margins=True`) to align MJX with MetaWorld. Default `make()` uses lighter solver settings tuned for speed.
 
+Beyond single-step parity:
+
+| Test file | Checks |
+|-----------|--------|
+| `test_static_geoms.py` | Collision geometry of world-fixed bodies moved at reset matches MuJoCo C kinematics, after reset and after a step |
+| `test_goal_observation.py` | Goal clip bounds equal MetaWorld's `goal_space`; fully observable step observations (goal included) match MetaWorld |
+| `test_box_contacts.py` | Box-box contact patches keep per-point depths like MuJoCo C (Sawyer pads on a tilted stick) |
+| `test_expert_rollouts.py` | 200-step rollouts of MetaWorld's scripted policies: window-close succeeds as in MetaWorld, the unplug-side plug stays seated, stick-pull pays MetaWorld's reward while the stick is inserted and pulled |
+| `test_vector_env_goals.py` | `VectorEnv` draws fresh goals with `rand_vecs=None` and stays in the pool otherwise |
+
 ### Test infrastructure notes
 
 - **Do not use `pytest-forked` / `pytest-isolate`** — Warp initializes CUDA in the parent process; forking breaks the GPU context.
+- `tests/` is a regular package so that a stray top-level `tests` package installed by a dependency (e.g. `pgx`) cannot shadow it.
+- Without a free GPU, the suite runs on Warp's CPU backend: `JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= .venv/bin/python -m pytest tests/ -q`.
 - JAX persistent cache: `$TMPDIR/mtcworldmjx_jax_cache` (override with `MTCWMJX_JAX_CACHE_DIR`; legacy `CWMJX_JAX_CACHE_DIR` still works).
 - Warp kernel cache: `~/.cache/warp/`.
 - First run per environment compiles Warp kernels (can take seconds); subsequent runs load from cache.
@@ -253,7 +265,7 @@ Imported from the top-level package (`from MTCWorldMJX import …`):
 - `MT1`, `MT10`, `MT25`, `MT50`
 - `ML1`, `ML10`, `ML25`, `ML45`
 - `make_mt_envs`, `make_ml_envs_train`, `make_ml_envs_test`
-- `VectorEnv` — batched lanes over frozen task `rand_vec`s
+- `VectorEnv` — batched lanes over frozen task `rand_vec`s, or a fresh `rand_vec` per lane at every reset with `rand_vecs=None` (Continual World's `random_init_all`)
 - `rollout` — JIT-friendly trajectory collection
 
 See `tests/test_benchmarks.py` and `metaworld_example.py`.
@@ -288,9 +300,10 @@ Parity is **tolerance-based**, not bit-exact:
 
 1. **MJX/Warp vs CPU MuJoCo** — small numerical differences are expected; tolerances account for this.
 2. **`peg-unplug-side-v3`** — MetaWorld's double `reset_model()` leaves a large plug angular velocity that Warp does not reproduce; reset qvel uses a relaxed tolerance (`7.0`). Observations and step dynamics still match within normal bounds.
-3. **Parity depth** — one fixed reset vector and one fixed action per env; not long-horizon statistical equivalence.
-4. **GPU required** — the default `impl="warp"` backend needs CUDA.
-5. **Continual World** — this repo ships the benchmark only (envs, protocol, metrics). Paper training methods (SAC, EWC, PackNet, …) are not included; use an external learner.
+3. **Parity depth** — one fixed reset vector and one fixed action per env, plus scripted-policy rollouts for a few Continual World tasks; not long-horizon statistical equivalence.
+4. **Warp collision paths** — models are loaded with `mjDSBL_NATIVECCD` set. In MuJoCo Warp that flag only routes box-box pairs to the primitive collider (a port of MuJoCo C's `mjc_BoxBox`); the default convex path gives every point of a contact patch the same depth, which let the Sawyer fingers close through grasped boxes. Other convex pairs (e.g. cylinder-box) still get one shared depth per patch, and fewer points than MuJoCo C.
+5. **GPU required** — the default `impl="warp"` backend needs CUDA (Warp's CPU backend works for tests, slowly).
+6. **Continual World** — this repo ships the benchmark only (envs, protocol, metrics). Paper training methods (SAC, EWC, PackNet, …) are not included; use an external learner.
 
 ## Roadmap
 

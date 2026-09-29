@@ -163,9 +163,13 @@ def make_cl_test_envs(
     *,
     config: CWConfig | None = None,
     seed: int | None = None,
-    randomization: RandomizationKind = "deterministic",
+    randomization: RandomizationKind | None = None,
 ) -> list[CWTaskEnv]:
-    """Per-task evaluation environments in sequence order (deterministic goals by default)."""
+    """Per-task evaluation environments in sequence order.
+
+    ``randomization`` defaults to ``config.randomization`` (``random_init_all``),
+    as Continual World builds its test envs with the training randomization.
+    """
     benchmark = CWBenchmark(name, config=config, seed=seed)
     return list(_task_envs_for_benchmark(benchmark, randomization=randomization))
 
